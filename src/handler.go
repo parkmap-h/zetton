@@ -34,11 +34,12 @@ func createSpacesAction(ctx DomainContext, w http.ResponseWriter, r *http.Reques
 	}
 	space := featureToInfraSpace(&request)
 	ctx.commandCreateSpace(space)
+	response := SpaceToFeature(space)
 
 	if ctx.Err != nil {
 		return
 	}
-	err := json.NewEncoder(w).Encode(request)
+	err := json.NewEncoder(w).Encode(response)
 	if err != nil {
 		ctx.Err = InvalidJsonError{Err: err}
 		return
