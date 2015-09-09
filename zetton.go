@@ -1,15 +1,27 @@
 package zetton
 
 import (
+    "appengine"
     "encoding/json"
     "fmt"
     "net/http"
+    "appengine/datastore"
 )
 
-type Space struct {
-    Latitude float32 `json:"latitude"`
-    Longitude float32 `json:"longitude"`
+type SpacePostRequest struct {
+    Latitude float64 `json:"latitude"`
+    Longitude float64 `json:"longitude"`
     Value int `json:"value"`
+}
+
+type Space struct {
+    Point appengine.GeoPoint
+    Value int `datastore:",noindex"`
+}
+
+func RequestToSpace(request *SpacePostRequest, space *Space) {
+    space.Point = appengine.GeoPoint{Lat: request.Latitude, Lng: request.Longitude}
+    space.Value = request.Value
 }
 
 func init() {
@@ -31,11 +43,21 @@ func spacesHandler (w http.ResponseWriter, r *http.Request) {
 }
 
 func createSpacesHandler (w http.ResponseWriter, r *http.Request) {
+    c := appengine.NewContext(r)
+
     dec := json.NewDecoder(r.Body)
-    var space Space
-    err := dec.Decode(&space)
+    var request SpacePostRequest
+    err := dec.Decode(&request)
     if err != nil {
         fmt.Fprint(w, "invalid json: " + err.Error())
+        return
+    }
+    var space Space
+    RequestToSpace(&request, &space)
+    key := datastore.NewIncompleteKey(c, "Space", nil)
+    _, err2 := datastore.Put(c, key, &space)
+    if err2 != nil {
+        fmt.Fprint(w, err2.Error())
         return
     }
     fmt.Fprint(w, space)
