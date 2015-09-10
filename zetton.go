@@ -5,29 +5,54 @@ import (
 	"appengine/datastore"
 	"encoding/json"
 	"fmt"
+	"github.com/kpawlik/geojson"
 	"net/http"
 )
-
-type SpaceJson struct {
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Value     int     `json:"value"`
-}
 
 type Space struct {
 	Point appengine.GeoPoint
 	Value int `datastore:",noindex"`
 }
 
-func jsonToSpace(request *SpaceJson, space *Space) {
-	space.Point = appengine.GeoPoint{Lat: request.Latitude, Lng: request.Longitude}
-	space.Value = request.Value
+const spaceValueName = "value"
+
+func featureToSpace(feature *geojson.Feature) *Space {
+	point, _ := feature.GetGeometry()
+	coordinate := point.(*geojson.Point).Coordinates
+	prop := feature.Properties
+	return &Space{
+		Point: appengine.GeoPoint{
+			Lng: float64(coordinate[0]),
+			Lat: float64(coordinate[1]),
+		},
+		Value: int(prop[spaceValueName].(float64)),
+	}
 }
 
-func SpaceTojson(space *Space, request *SpaceJson) {
-	request.Latitude = space.Point.Lat
-	request.Longitude = space.Point.Lng
-	request.Value = space.Value
+func FeatureColloctionToSpaces(featureCollection *geojson.FeatureCollection) []Space {
+	features := featureCollection.Features
+	ret := make([]Space, len(features))
+	for i, feature := range features {
+		ret[i] = *featureToSpace(feature)
+	}
+	return ret
+}
+
+func SpaceToFeature(space *Space) *geojson.Feature {
+	lng := geojson.CoordType(space.Point.Lng)
+	lat := geojson.CoordType(space.Point.Lat)
+	c := geojson.Coordinate{lng, lat}
+	geom := geojson.NewPoint(c)
+	prop := map[string]interface{}{spaceValueName: space.Value}
+	return geojson.NewFeature(geom, prop, nil)
+}
+
+func SpacesToFeatureCollection(spaces []Space) *geojson.FeatureCollection {
+	features := make([]*geojson.Feature, len(spaces))
+	for i, space := range spaces {
+		features[i] = SpaceToFeature(&space)
+	}
+	return geojson.NewFeatureCollection(features)
 }
 
 func init() {
@@ -60,11 +85,8 @@ func listSpacesHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "fail get spaces")
 		return
 	}
-	var response = make([]SpaceJson, len(spaces))
-	for i, space := range spaces {
-		SpaceTojson(&space, &response[i])
-	}
-	err = json.NewEncoder(w).Encode(response)
+	featureCollection := SpacesToFeatureCollection(spaces)
+	err = json.NewEncoder(w).Encode(featureCollection)
 	if err != nil {
 		fmt.Fprint(w, err.Error())
 	}
@@ -75,16 +97,16 @@ func createSpacesHandler(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 
 	dec := json.NewDecoder(r.Body)
-	var request SpaceJson
+	var request geojson.Feature
 	err := dec.Decode(&request)
 	if err != nil {
 		fmt.Fprint(w, "invalid json: "+err.Error())
 		return
 	}
-	var space Space
-	jsonToSpace(&request, &space)
+	space := featureToSpace(&request)
+	fmt.Fprint(w, space.Point.Lat)
 	key := datastore.NewIncompleteKey(c, "Space", nil)
-	_, err2 := datastore.Put(c, key, &space)
+	_, err2 := datastore.Put(c, key, space)
 	if err2 != nil {
 		fmt.Fprint(w, err2.Error())
 		return
