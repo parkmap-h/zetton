@@ -9,58 +9,38 @@ import (
 	"net/http"
 )
 
-func spacesHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Add("Access-Control-Allow-Origin", "*")
-	var err error
-	switch r.Method {
-	case "GET":
-		err = listSpacesHandler(w, r)
-	case "POST":
-		err = createSpacesHandler(w, r)
-	}
-
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, err.Error())
-	}
-	// unmatched Route
-}
-
-func listSpacesHandler(w http.ResponseWriter, r *http.Request) error {
-	var err error
+func listSpacesAction(ctx DomainContext, w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-
-	q := datastore.NewQuery("Space").Limit(100)
-	var spaces []Space
-	_, err = q.GetAll(c, &spaces)
-	if err != nil {
-		return err
+	point := GeoPoint{
+		Lat: Latitude(132.3),
+		Lng: Longitude(32.1),
+	}
+	searcher := NearSpaceSearchServiceImpl{app: c}
+	spaces := ctx.nearSpaces(point, &searcher)
+	if ctx.Err != nil {
+		return
 	}
 	featureCollection := SpacesToFeatureCollection(spaces)
-	err = json.NewEncoder(w).Encode(featureCollection)
+	err := json.NewEncoder(w).Encode(featureCollection)
 	if err != nil {
-		return InvalidJsonError{Err: err}
+		ctx.Err = InvalidJsonError{Err: err}
+		return
 	}
-	return nil
 }
 
-func createSpacesHandler(w http.ResponseWriter, r *http.Request) error {
+func createSpacesAction(ctx DomainContext, w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
-	var err error
 	dec := json.NewDecoder(r.Body)
 	var request geojson.Feature
-	err = dec.Decode(&request)
-	if err != nil {
-		return err
+	ctx.Err = dec.Decode(&request)
+	if ctx.Err != nil {
+		return
 	}
 	space := featureToSpace(&request)
-	fmt.Fprint(w, space.Point.Lat)
 	key := datastore.NewIncompleteKey(c, "Space", nil)
-	_, err = datastore.Put(c, key, space)
-	if err != nil {
-		return err
+	_, ctx.Err = datastore.Put(c, key, space)
+	if ctx.Err != nil {
+		return
 	}
 	fmt.Fprint(w, space)
-	return nil
 }
