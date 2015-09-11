@@ -2,8 +2,8 @@ package zetton
 
 import (
 	"appengine"
-	"github.com/kpawlik/geojson"
 	"appengine/datastore"
+	"github.com/kpawlik/geojson"
 )
 
 type Latitude float64
@@ -15,7 +15,7 @@ const spaceValueName = "value"
 
 type InfraSpace struct {
 	Point_ appengine.GeoPoint `datastore:"Point"`
-	Value_ int `datastore:"Value,noindex"`
+	Value_ int                `datastore:"Value,noindex"`
 }
 
 func (space *InfraSpace) Point() GeoPoint {
@@ -30,22 +30,24 @@ func (space *InfraSpace) Value() SpaceValueType {
 }
 
 type NearSpaceSearchServiceImpl struct {
-	app appengine.Context
-	domain DomainContext
+	App appengine.Context
 }
 
-func (self *NearSpaceSearchServiceImpl) search(point GeoPoint, distance Meter) []Space {
+func (self *NearSpaceSearchServiceImpl) search(point GeoPoint, distance Meter) ([]Space, error) {
 	q := datastore.NewQuery("Space").Limit(100)
 	var spaces []InfraSpace
-	_, self.domain.Err = q.GetAll(self.app, &spaces)
+	_, err := q.GetAll(self.App, &spaces)
+	if err != nil {
+		return nil, err
+	}
 	ret := make([]Space, len(spaces))
 	for i, space := range spaces {
 		ret[i] = Space(&space)
 	}
-	return ret
+	return ret, nil
 }
 
-func featureToSpace(feature *geojson.Feature) *InfraSpace {
+func featureToInfraSpace(feature *geojson.Feature) *InfraSpace {
 	point, _ := feature.GetGeometry()
 	coordinate := point.(*geojson.Point).Coordinates
 	prop := feature.Properties
@@ -62,9 +64,19 @@ func FeatureColloctionToSpaces(featureCollection *geojson.FeatureCollection) []I
 	features := featureCollection.Features
 	ret := make([]InfraSpace, len(features))
 	for i, feature := range features {
-		ret[i] = *featureToSpace(feature)
+		ret[i] = *featureToInfraSpace(feature)
 	}
 	return ret
+}
+
+func spaceToInfra(space Space) *InfraSpace {
+	return &InfraSpace{
+		Point_: appengine.GeoPoint{
+			Lat: float64(space.Point().Lat),
+			Lng: float64(space.Point().Lng),
+		},
+		Value_: int(space.Value()),
+	}
 }
 
 func SpaceToFeature(space Space) *geojson.Feature {

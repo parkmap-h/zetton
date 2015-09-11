@@ -1,22 +1,19 @@
 package zetton
 
 import (
-	"appengine"
-	"appengine/datastore"
 	"encoding/json"
-	"fmt"
 	"github.com/kpawlik/geojson"
 	"net/http"
 )
 
 func listSpacesAction(ctx DomainContext, w http.ResponseWriter, r *http.Request) {
-	c := appengine.NewContext(r)
 	point := GeoPoint{
 		Lat: Latitude(132.3),
 		Lng: Longitude(32.1),
 	}
-	searcher := NearSpaceSearchServiceImpl{app: c}
-	spaces := ctx.nearSpaces(point, &searcher)
+
+	spaces := ctx.queryNearSpace(point, ctx.NearSearchService)
+
 	if ctx.Err != nil {
 		return
 	}
@@ -29,18 +26,21 @@ func listSpacesAction(ctx DomainContext, w http.ResponseWriter, r *http.Request)
 }
 
 func createSpacesAction(ctx DomainContext, w http.ResponseWriter, r *http.Request) {
-	c := appengine.NewContext(r)
 	dec := json.NewDecoder(r.Body)
 	var request geojson.Feature
 	ctx.Err = dec.Decode(&request)
 	if ctx.Err != nil {
 		return
 	}
-	space := featureToSpace(&request)
-	key := datastore.NewIncompleteKey(c, "Space", nil)
-	_, ctx.Err = datastore.Put(c, key, space)
+	space := featureToInfraSpace(&request)
+	ctx.commandCreateSpace(space)
+
 	if ctx.Err != nil {
 		return
 	}
-	fmt.Fprint(w, space)
+	err := json.NewEncoder(w).Encode(request)
+	if err != nil {
+		ctx.Err = InvalidJsonError{Err: err}
+		return
+	}
 }

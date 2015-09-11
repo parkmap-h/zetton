@@ -11,6 +11,8 @@ type Meter struct {
 }
 
 //-- Entity --
+const SpaceValueMin = SpaceValueType(0)
+
 type Space interface {
 	Point() GeoPoint
 	Value() SpaceValueType
@@ -23,15 +25,30 @@ func meter(n int) Meter {
 
 //-- DomainService --
 type NearSpaceSearchService interface {
-	search(point GeoPoint, distance Meter) []Space
+	search(point GeoPoint, distance Meter) ([]Space, error)
 }
 
 //-- DomainLogic --
 type DomainContext struct {
-	Err error
+	Err               error
+	SpaceRepository   SpaceRepository
+	NearSearchService NearSpaceSearchService
 }
 
-func (c *DomainContext) nearSpaces(point GeoPoint, searcher NearSpaceSearchService) []Space {
+func (c *DomainContext) commandCreateSpace(space Space) Space {
+	min := SpaceValueMin
+	if int(min) >= int(space.Value()) {
+		c.Err = SpaceValueError{Message: "空き数は0以上の値を設定してください"}
+		return nil
+	}
+	_, ret, err := c.SpaceRepository.store(nil, space)
+	c.Err = err
+	return ret
+}
+
+func (c *DomainContext) queryNearSpace(point GeoPoint, searcher NearSpaceSearchService) []Space {
 	distance := meter(100)
-	return searcher.search(point, distance)
+	spaces, err := searcher.search(point, distance)
+	c.Err = err
+	return spaces
 }

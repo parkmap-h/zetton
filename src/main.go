@@ -1,8 +1,9 @@
 package zetton
 
 import (
-	"net/http"
+	"appengine"
 	"fmt"
+	"net/http"
 )
 
 func init() {
@@ -12,7 +13,11 @@ func init() {
 func spacesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Add("Access-Control-Allow-Origin", "*")
-	ctx := DomainContext{}
+	c := appengine.NewContext(r)
+	ctx := DomainContext{
+		SpaceRepository:   &SpaceRepositoryOnDatastore{C: c},
+		NearSearchService: &NearSpaceSearchServiceImpl{App: c},
+	}
 	switch r.Method {
 	case "GET":
 		listSpacesAction(ctx, w, r)
