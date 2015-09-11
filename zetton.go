@@ -55,62 +55,70 @@ func SpacesToFeatureCollection(spaces []Space) *geojson.FeatureCollection {
 	return geojson.NewFeatureCollection(features)
 }
 
+type InvalidJsonError struct {
+	Err error
+}
+
+func (self InvalidJsonError) Error() string {
+	return "invalid json: " + self.Err.Error()
+}
+
 func init() {
-	http.HandleFunc("/", handler)
 	http.HandleFunc("/spaces", spacesHandler)
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "Hello, world!")
-}
-
 func spacesHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Add("Access-Control-Allow-Origin", "*")
+	var err error
 	switch r.Method {
 	case "GET":
-		listSpacesHandler(w, r)
+		err = listSpacesHandler(w, r)
 	case "POST":
-		createSpacesHandler(w, r)
-		return
+		err = createSpacesHandler(w, r)
+	}
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, err.Error())
 	}
 	// unmatched Route
 }
 
-func listSpacesHandler(w http.ResponseWriter, r *http.Request) {
+func listSpacesHandler(w http.ResponseWriter, r *http.Request) error {
+	var err error
 	c := appengine.NewContext(r)
 
 	q := datastore.NewQuery("Space").Limit(100)
 	var spaces []Space
-	_, err := q.GetAll(c, &spaces)
+	_, err = q.GetAll(c, &spaces)
 	if err != nil {
-		fmt.Fprint(w, "fail get spaces")
-		return
+		return err
 	}
 	featureCollection := SpacesToFeatureCollection(spaces)
 	err = json.NewEncoder(w).Encode(featureCollection)
 	if err != nil {
-		fmt.Fprint(w, err.Error())
+		return InvalidJsonError{Err: err}
 	}
-	return
+	return nil
 }
 
-func createSpacesHandler(w http.ResponseWriter, r *http.Request) {
+func createSpacesHandler(w http.ResponseWriter, r *http.Request) error {
 	c := appengine.NewContext(r)
-
+	var err error
 	dec := json.NewDecoder(r.Body)
 	var request geojson.Feature
-	err := dec.Decode(&request)
+	err = dec.Decode(&request)
 	if err != nil {
-		fmt.Fprint(w, "invalid json: "+err.Error())
-		return
+		return err
 	}
 	space := featureToSpace(&request)
 	fmt.Fprint(w, space.Point.Lat)
 	key := datastore.NewIncompleteKey(c, "Space", nil)
-	_, err2 := datastore.Put(c, key, space)
-	if err2 != nil {
-		fmt.Fprint(w, err2.Error())
-		return
+	_, err = datastore.Put(c, key, space)
+	if err != nil {
+		return err
 	}
 	fmt.Fprint(w, space)
-	return
+	return nil
 }
