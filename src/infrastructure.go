@@ -86,7 +86,7 @@ func SpaceToFeature(space Space) *geojson.Feature {
 	lat := geojson.CoordType(infra.Point_.Lat)
 	c := geojson.Coordinate{lng, lat}
 	geom := geojson.NewPoint(c)
-	prop := map[string]interface{}{spaceValueName: infra.Value_, "createAt": infra.CreateAt_}
+	prop := map[string]interface{}{spaceValueName: infra.Value_, "createAt": infra.CreateAt_.Unix() }
 	return geojson.NewFeature(geom, prop, nil)
 }
 
