@@ -4,6 +4,7 @@ import (
 	"appengine"
 	"appengine/datastore"
 	"github.com/kpawlik/geojson"
+	"time"
 )
 
 type Latitude float64
@@ -14,8 +15,9 @@ type MeterValueType int
 const spaceValueName = "value"
 
 type InfraSpace struct {
-	Point_ appengine.GeoPoint `datastore:"Point"`
-	Value_ int                `datastore:"Value,noindex"`
+	Point_    appengine.GeoPoint `datastore:"Point"`
+	Value_    int                `datastore:"Value,noindex"`
+	CreateAt_ time.Time          `datastore:"CreateAt"`
 }
 
 func (space *InfraSpace) Point() GeoPoint {
@@ -34,16 +36,17 @@ type NearSpaceSearchServiceImpl struct {
 }
 
 func (self *NearSpaceSearchServiceImpl) search(point GeoPoint, distance Meter) ([]Space, error) {
-	q := datastore.NewQuery("Space").Limit(100)
+	q := datastore.NewQuery("Space").Order("-CreateAt").Limit(100)
 	var spaces []InfraSpace
 	_, err := q.GetAll(self.App, &spaces)
 	if err != nil {
 		return nil, err
 	}
 	ret := make([]Space, len(spaces))
-	for i, space := range spaces {
-		ret[i] = Space(&space)
+	for i, _ := range spaces {
+		ret[i] = Space(&(spaces[i]))
 	}
+	println(ret[0].Value())
 	return ret, nil
 }
 
@@ -70,27 +73,27 @@ func FeatureColloctionToSpaces(featureCollection *geojson.FeatureCollection) []I
 }
 
 func spaceToInfra(space Space) *InfraSpace {
-	return &InfraSpace{
-		Point_: appengine.GeoPoint{
-			Lat: float64(space.Point().Lat),
-			Lng: float64(space.Point().Lng),
-		},
-		Value_: int(space.Value()),
+	switch t := space.(type) {
+	case *InfraSpace:
+		return t
 	}
+	return nil
 }
 
 func SpaceToFeature(space Space) *geojson.Feature {
-	lng := geojson.CoordType(space.Point().Lng)
-	lat := geojson.CoordType(space.Point().Lat)
+	infra := spaceToInfra(space)
+	lng := geojson.CoordType(infra.Point_.Lng)
+	lat := geojson.CoordType(infra.Point_.Lat)
 	c := geojson.Coordinate{lng, lat}
 	geom := geojson.NewPoint(c)
-	prop := map[string]interface{}{spaceValueName: space.Value()}
+	prop := map[string]interface{}{spaceValueName: infra.Value_, "createAt": infra.CreateAt_}
 	return geojson.NewFeature(geom, prop, nil)
 }
 
 func SpacesToFeatureCollection(spaces []Space) *geojson.FeatureCollection {
 	features := make([]*geojson.Feature, len(spaces))
 	for i, space := range spaces {
+		println(spaces)
 		features[i] = SpaceToFeature(space)
 	}
 	return geojson.NewFeatureCollection(features)

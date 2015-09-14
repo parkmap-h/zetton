@@ -3,6 +3,7 @@ package zetton
 import (
 	"appengine"
 	"appengine/datastore"
+	"time"
 )
 
 type SpaceKey int64
@@ -17,12 +18,13 @@ type SpaceRepositoryOnDatastore struct {
 
 func (self *SpaceRepositoryOnDatastore) store(key *SpaceKey, space Space) (SpaceKey, Space, error) {
 	var datastoreKey *datastore.Key
+	infraSpace := spaceToInfra(space)
 	if key != nil {
 		datastore.NewKey(self.C, "Space", "", int64(*key), nil)
 	} else {
 		datastoreKey = datastore.NewIncompleteKey(self.C, "Space", nil)
+		infraSpace.CreateAt_ = time.Now()
 	}
-	infraSpace := spaceToInfra(space)
 	returnKey, err := datastore.Put(self.C, datastoreKey, infraSpace)
 	return SpaceKey(returnKey.IntID()), space, err
 }
