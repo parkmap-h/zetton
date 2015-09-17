@@ -37,7 +37,7 @@ type DomainContext struct {
 
 func (c *DomainContext) commandCreateSpace(space Space) Space {
 	min := SpaceValueMin
-	if int(min) >= int(space.Value()) {
+	if int(min) > int(space.Value()) {
 		c.Err = SpaceValueError{Message: "空き数は0以上の値を設定してください"}
 		return nil
 	}
