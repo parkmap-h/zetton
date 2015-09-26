@@ -12,7 +12,9 @@ func init() {
 
 func spacesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Add("Access-Control-Allow-Methods", "POST, GET, DELETE, PUT")
 	w.Header().Add("Access-Control-Allow-Origin", "*")
+	w.Header().Add("Access-Control-Allow-Headers", "Content-Type")
 	c := appengine.NewContext(r)
 	ctx := DomainContext{
 		SpaceRepository:   &SpaceRepositoryOnDatastore{C: c},
