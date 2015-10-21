@@ -3,6 +3,9 @@ package zetton
 import (
 	"appengine"
 	"appengine/datastore"
+	"appengine/memcache"
+	"bytes"
+	"encoding/json"
 	"github.com/kpawlik/geojson"
 	"time"
 )
@@ -36,9 +39,43 @@ type NearSpaceSearchServiceImpl struct {
 }
 
 func (self *NearSpaceSearchServiceImpl) search(point GeoPoint, distance Meter) ([]Space, error) {
+	memcacheKey := "nearspaces"
+	c := self.App
+	if item, err := memcache.Get(c, memcacheKey); err == memcache.ErrCacheMiss {
+		return getSpacesOnCacheOrDatastore(c)
+	} else if err != nil {
+		return getSpacesOnCacheOrDatastore(c)
+	} else {
+		r := bytes.NewBuffer(item.Value)
+		var spaces []Space
+		err2 := json.NewDecoder(r).Decode(&spaces)
+		return spaces, err2
+	}
+}
+
+func getSpacesOnCacheOrDatastore(c appengine.Context) ([]Space, error) {
+	memcacheKey := "nearspaces"
+	spaces, err2 := getSpacesOnDatastore(c)
+	var w bytes.Buffer
+	json.NewEncoder(&w).Encode(spaces)
+	item := &memcache.Item{
+		Key: memcacheKey,
+		Value: w.Bytes(),
+	}
+	if  err2 != nil {
+		return []Space{}, err2
+	}
+	if err3 := memcache.Set(c, item); err3 != nil {
+		c.Errorf("error setting item: %v", err3)
+		return []Space{}, err3
+	}
+	return spaces, nil
+}
+
+func getSpacesOnDatastore(c appengine.Context) ([]Space, error) {
 	q := datastore.NewQuery("Space").Order("-CreateAt").Limit(100)
 	var spaces []InfraSpace
-	_, err := q.GetAll(self.App, &spaces)
+	_, err := q.GetAll(c, &spaces)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +83,6 @@ func (self *NearSpaceSearchServiceImpl) search(point GeoPoint, distance Meter) (
 	for i, _ := range spaces {
 		ret[i] = Space(&(spaces[i]))
 	}
-	println(ret[0].Value())
 	return ret, nil
 }
 

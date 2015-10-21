@@ -3,6 +3,7 @@ package zetton
 import (
 	"appengine"
 	"appengine/datastore"
+	"appengine/memcache"
 	"time"
 )
 
@@ -26,5 +27,7 @@ func (self *SpaceRepositoryOnDatastore) store(key *SpaceKey, space Space) (Space
 		infraSpace.CreateAt_ = time.Now()
 	}
 	returnKey, err := datastore.Put(self.C, datastoreKey, infraSpace)
+	memcacheKey := "nearspaces"
+	memcache.Delete(self.C, memcacheKey)
 	return SpaceKey(returnKey.IntID()), space, err
 }
