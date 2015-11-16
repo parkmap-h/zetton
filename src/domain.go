@@ -1,5 +1,9 @@
 package zetton
 
+import (
+	"net/http"
+)
+
 //-- ValueObject --
 type GeoPoint struct {
 	Lat Latitude
@@ -31,6 +35,7 @@ type NearSpaceSearchService interface {
 //-- DomainLogic --
 type DomainContext struct {
 	Err               error
+	Request           *http.Request
 	SpaceRepository   SpaceRepository
 	NearSearchService NearSpaceSearchService
 }

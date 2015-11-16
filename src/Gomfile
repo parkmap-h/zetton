@@ -1,1 +1,3 @@
 gom 'github.com/kpawlik/geojson'
+gom 'github.com/gorilla/mux'
+gom 'github.com/gorilla/context'

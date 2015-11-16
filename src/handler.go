@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func listSpacesAction(ctx DomainContext, w http.ResponseWriter, r *http.Request) {
+func listSpacesAction(w http.ResponseWriter, ctx *DomainContext) {
 	point := GeoPoint{
 		Lat: Latitude(132.3),
 		Lng: Longitude(32.1),
@@ -25,8 +25,8 @@ func listSpacesAction(ctx DomainContext, w http.ResponseWriter, r *http.Request)
 	}
 }
 
-func createSpacesAction(ctx DomainContext, w http.ResponseWriter, r *http.Request) {
-	dec := json.NewDecoder(r.Body)
+func createSpacesAction(w http.ResponseWriter, ctx *DomainContext) {
+	dec := json.NewDecoder(ctx.Request.Body)
 	var request geojson.Feature
 	ctx.Err = dec.Decode(&request)
 	if ctx.Err != nil {
