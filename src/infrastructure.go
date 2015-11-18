@@ -64,8 +64,8 @@ func (self *NearSpaceSearchServiceImpl) search(point GeoPoint, distance Meter) (
 
 func infraSpacesToSpaces(spaces []InfraSpace) []Space {
 	ret := make([]Space, len(spaces))
-	for i, space := range spaces {
-		ret[i] = Space(&space)
+	for i, _ := range spaces {
+		ret[i] = Space(&spaces[i])
 	}
 	return ret
 }
@@ -119,8 +119,8 @@ func featureToInfraSpace(feature *geojson.Feature) *InfraSpace {
 func FeatureColloctionToSpaces(featureCollection *geojson.FeatureCollection) []InfraSpace {
 	features := featureCollection.Features
 	ret := make([]InfraSpace, len(features))
-	for i, feature := range features {
-		ret[i] = *featureToInfraSpace(feature)
+	for i, _ := range features {
+		ret[i] = *featureToInfraSpace(features[i])
 	}
 	return ret
 }
@@ -145,8 +145,8 @@ func SpaceToFeature(space Space) *geojson.Feature {
 
 func SpacesToFeatureCollection(spaces []Space) *geojson.FeatureCollection {
 	features := make([]*geojson.Feature, len(spaces))
-	for i, space := range spaces {
-		features[i] = SpaceToFeature(space)
+	for i, _ := range spaces {
+		features[i] = SpaceToFeature(spaces[i])
 	}
 	return geojson.NewFeatureCollection(features)
 }
