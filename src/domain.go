@@ -35,6 +35,7 @@ type NearSpaceSearchService interface {
 //-- DomainLogic --
 type DomainContext struct {
 	Err               error
+	Logger            Logger
 	Request           *http.Request
 	SpaceRepository   SpaceRepository
 	NearSearchService NearSpaceSearchService

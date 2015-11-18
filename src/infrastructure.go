@@ -23,6 +23,14 @@ type InfraSpace struct {
 	CreateAt_ time.Time          `datastore:"CreateAt"`
 }
 
+type Logger interface {
+	Debugf(format string, args ...interface{})
+	Infof(format string, args ...interface{})
+	Warningf(format string, args ...interface{})
+	Errorf(format string, args ...interface{})
+	Criticalf(format string, args ...interface{})
+}
+
 func (space *InfraSpace) Point() GeoPoint {
 	return GeoPoint{
 		Lat: Latitude(space.Point_.Lat),
@@ -46,23 +54,35 @@ func (self *NearSpaceSearchServiceImpl) search(point GeoPoint, distance Meter) (
 	} else if err != nil {
 		return getSpacesOnCacheOrDatastore(c)
 	} else {
+		c.Debugf("use cache: ", memcacheKey)
 		r := bytes.NewBuffer(item.Value)
-		var spaces []Space
+		var spaces []InfraSpace
 		err2 := json.NewDecoder(r).Decode(&spaces)
-		return spaces, err2
+		return infraSpacesToSpaces(spaces), err2
 	}
+}
+
+func infraSpacesToSpaces(spaces []InfraSpace) []Space {
+	ret := make([]Space, len(spaces))
+	for i, space := range spaces {
+		ret[i] = Space(&space)
+	}
+	return ret
 }
 
 func getSpacesOnCacheOrDatastore(c appengine.Context) ([]Space, error) {
 	memcacheKey := "nearspaces"
+	c.Debugf("no hit cache: ", memcacheKey)
 	spaces, err2 := getSpacesOnDatastore(c)
 	var w bytes.Buffer
-	json.NewEncoder(&w).Encode(spaces)
+	if err := json.NewEncoder(&w).Encode(spaces); err != nil {
+		return []Space{}, err
+	}
 	item := &memcache.Item{
-		Key: memcacheKey,
+		Key:   memcacheKey,
 		Value: w.Bytes(),
 	}
-	if  err2 != nil {
+	if err2 != nil {
 		return []Space{}, err2
 	}
 	if err3 := memcache.Set(c, item); err3 != nil {
@@ -79,10 +99,7 @@ func getSpacesOnDatastore(c appengine.Context) ([]Space, error) {
 	if err != nil {
 		return nil, err
 	}
-	ret := make([]Space, len(spaces))
-	for i, _ := range spaces {
-		ret[i] = Space(&(spaces[i]))
-	}
+	ret := infraSpacesToSpaces(spaces)
 	return ret, nil
 }
 
@@ -122,14 +139,13 @@ func SpaceToFeature(space Space) *geojson.Feature {
 	lat := geojson.CoordType(infra.Point_.Lat)
 	c := geojson.Coordinate{lng, lat}
 	geom := geojson.NewPoint(c)
-	prop := map[string]interface{}{spaceValueName: infra.Value_, "createAt": infra.CreateAt_.Unix() }
+	prop := map[string]interface{}{spaceValueName: infra.Value_, "createAt": infra.CreateAt_.Unix()}
 	return geojson.NewFeature(geom, prop, nil)
 }
 
 func SpacesToFeatureCollection(spaces []Space) *geojson.FeatureCollection {
 	features := make([]*geojson.Feature, len(spaces))
 	for i, space := range spaces {
-		println(spaces)
 		features[i] = SpaceToFeature(space)
 	}
 	return geojson.NewFeatureCollection(features)

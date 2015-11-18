@@ -11,6 +11,7 @@ type SpaceKey int64
 
 type SpaceRepository interface {
 	store(key *SpaceKey, space Space) (SpaceKey, Space, error)
+	resolveByDate(start time.Time) ([]Space, error)
 }
 
 type SpaceRepositoryOnDatastore struct {
@@ -30,4 +31,20 @@ func (self *SpaceRepositoryOnDatastore) store(key *SpaceKey, space Space) (Space
 	memcacheKey := "nearspaces"
 	memcache.Delete(self.C, memcacheKey)
 	return SpaceKey(returnKey.IntID()), space, err
+}
+
+func (self *SpaceRepositoryOnDatastore) resolveByDate(start time.Time) ([]Space, error) {
+	end := start.AddDate(0, 0, 1)
+	q := datastore.NewQuery("Space").Order("-CreateAt").Filter("CreateAt >=", start).Filter("CreateAt <", end)
+	var spaces []InfraSpace
+	_, err := q.GetAll(self.C, &spaces)
+	if err != nil {
+		println(err.Error())
+		return nil, err
+	}
+	ret := make([]Space, len(spaces))
+	for i, _ := range spaces {
+		ret[i] = Space(&(spaces[i]))
+	}
+	return ret, err
 }
